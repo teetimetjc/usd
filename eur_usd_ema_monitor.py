@@ -23,7 +23,15 @@ import pytz
 import schedule
 import yfinance as yf
 import pandas as pd
-from notify_run import Notify
+
+# notify-run is optional — notifications are skipped if it isn't installed/configured
+try:
+    from notify_run import Notify
+    notify = Notify()
+    NOTIFY_AVAILABLE = True
+except Exception:
+    notify = None
+    NOTIFY_AVAILABLE = False
 
 # ── Configuration ──────────────────────────────────────────────────────────────
 
@@ -36,9 +44,6 @@ LOOKBACK_BARS = EMA_LONG * 2
 MARKET_TZ = pytz.timezone("US/Eastern")
 MARKET_OPEN_HOUR = 8         # 8 AM EST
 MARKET_CLOSE_HOUR = 12       # 12 PM EST (noon)
-
-# Initialise notify-run (reads your registered channel automatically)
-notify = Notify()
 
 # ── Helpers ────────────────────────────────────────────────────────────────────
 
@@ -109,6 +114,9 @@ def send_notification(signal: str, price: float, timestamp: str) -> None:
         f"Price: {price:.5f}\n"
         f"Time:  {timestamp}"
     )
+    if not NOTIFY_AVAILABLE:
+        print("  [NOTIFICATION SKIPPED] notify-run not configured.")
+        return
     try:
         notify.send(message)
         print(f"  [NOTIFICATION SENT] {message}")
