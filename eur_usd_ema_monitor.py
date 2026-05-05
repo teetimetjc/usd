@@ -178,6 +178,13 @@ def log_to_sheets(timestamp: str, price: float, ema20: float, ema50: float,
         creds_dict = json.loads(GOOGLE_CREDENTIALS)
         gc = gspread.service_account_from_dict(creds_dict)
         sheet = gc.open_by_key(GOOGLE_SHEET_ID).sheet1
+
+        # Write headers automatically if the sheet is empty
+        if sheet.row_count == 0 or sheet.cell(1, 1).value is None:
+            sheet.insert_row(
+                ["Timestamp", "Price", "EMA 20", "EMA 50", "Signal"], index=1
+            )
+
         sheet.append_row(
             [timestamp, round(price, 5), round(ema20, 5), round(ema50, 5), signal.upper()],
             value_input_option="USER_ENTERED",
