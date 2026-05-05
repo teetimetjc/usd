@@ -102,7 +102,7 @@ def detect_crossover(df: pd.DataFrame) -> str | None:
 # ── Notifications ──────────────────────────────────────────────────────────────
 
 def send_notification(signal: str, price: float, timestamp: str,
-                      ema20: float = 0, ema50: float = 0) -> None:
+                      ema20: float = 0, ema50: float = 0, reason: str = "") -> None:
     """
     Send a Pushover notification.
     signal: 'buy', 'sell', or 'status' (routine update, no crossover).
@@ -110,24 +110,23 @@ def send_notification(signal: str, price: float, timestamp: str,
     """
     if signal == "buy":
         title    = "EUR/USD BUY Signal"
-        header   = "BUY — EMA 20 crossed ABOVE EMA 50"
         priority = 1
     elif signal == "sell":
         title    = "EUR/USD SELL Signal"
-        header   = "SELL — EMA 20 crossed BELOW EMA 50"
         priority = 1
     else:
         title    = "EUR/USD Status Update"
-        trend    = "above" if ema20 > ema50 else "below"
-        header   = f"No signal — EMA 20 is {trend} EMA 50"
         priority = -1   # silent, no sound for routine updates
 
+    gap_pips = (ema20 - ema50) * 10000
+
     message = (
-        f"{header}\n"
-        f"Price: {price:.5f}\n"
-        f"EMA20: {ema20:.5f}\n"
-        f"EMA50: {ema50:.5f}\n"
-        f"Time:  {timestamp}"
+        f"{reason}\n\n"
+        f"Price:    {price:.5f}\n"
+        f"EMA 20:   {ema20:.5f}\n"
+        f"EMA 50:   {ema50:.5f}\n"
+        f"EMA Gap:  {gap_pips:+.1f} pips\n"
+        f"Time:     {timestamp}"
     )
 
     # ── Pushover ──
@@ -278,7 +277,8 @@ def check_ema_crossover() -> None:
     print(f"  EMA 50: {ema50:.5f}")
 
     # ── Notify + log ──
-    send_notification(signal or "status", price, timestamp, ema20, ema50)
+    reason = build_reason(signal or "status", ema20, ema50)
+    send_notification(signal or "status", price, timestamp, ema20, ema50, reason)
     log_to_sheets(timestamp, price, ema20, ema50, signal or "status")
 
     print(f"{'='*55}")
