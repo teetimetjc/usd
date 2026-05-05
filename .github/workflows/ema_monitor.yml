@@ -3,6 +3,11 @@ name: EUR/USD EMA Monitor
 on:
   # Manual trigger only — re-enable the schedule block below once confirmed working
   workflow_dispatch:
+    inputs:
+      test_notification:
+        description: 'Send a test Pushover notification regardless of EMA signal'
+        type: boolean
+        default: false
 
 jobs:
   check-ema:
@@ -24,4 +29,5 @@ jobs:
         env:
           PUSHOVER_TOKEN: ${{ secrets.PUSHOVER_TOKEN }}
           PUSHOVER_USER_KEY: ${{ secrets.PUSHOVER_USER_KEY }}
+          TEST_NOTIFICATION: ${{ inputs.test_notification }}
         run: python -c "import eur_usd_ema_monitor as m; m.check_ema_crossover()"

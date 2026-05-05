@@ -37,6 +37,8 @@ except Exception:
 # Pushover credentials — stored as GitHub Secrets (PUSHOVER_TOKEN and PUSHOVER_USER_KEY)
 PUSHOVER_TOKEN = os.environ.get("PUSHOVER_TOKEN", "")
 PUSHOVER_USER_KEY = os.environ.get("PUSHOVER_USER_KEY", "")
+# Set TEST_NOTIFICATION=true in the workflow_dispatch inputs to verify Pushover is working
+TEST_NOTIFICATION = os.environ.get("TEST_NOTIFICATION", "").lower() == "true"
 
 # ── Configuration ──────────────────────────────────────────────────────────────
 
@@ -167,6 +169,12 @@ def check_ema_crossover() -> None:
 
     print(f"\n{'='*55}")
     print(f"  Check at {timestamp}")
+
+    # Test mode: send a Pushover ping and exit — used to verify credentials
+    if TEST_NOTIFICATION:
+        print("  TEST MODE — sending test notification via Pushover...")
+        send_notification("buy", 1.08000, timestamp + " [TEST]")
+        return
 
     # Skip outside market hours
     if not is_market_hours():
