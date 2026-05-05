@@ -22,7 +22,6 @@ import datetime
 
 import pytz
 import requests
-import schedule
 import yfinance as yf
 import pandas as pd
 
@@ -217,6 +216,8 @@ def check_ema_crossover() -> None:
 # ── Scheduler ──────────────────────────────────────────────────────────────────
 
 def main() -> None:
+    import schedule  # only needed when running locally; CI uses GitHub Actions cron
+
     print("EUR/USD EMA Crossover Monitor started.")
     print(f"  Watching : EMA {EMA_SHORT} / EMA {EMA_LONG} crossovers")
     print(f"  Window   : {MARKET_OPEN_HOUR}:00 – {MARKET_CLOSE_HOUR}:00 EST, Mon–Fri")

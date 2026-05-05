@@ -22,7 +22,7 @@ jobs:
           python-version: '3.11'
 
       - name: Install dependencies
-        run: pip install yfinance pandas pytz requests schedule
+        run: pip install yfinance pandas pytz requests
 
       - name: Run EMA crossover check
         env:
