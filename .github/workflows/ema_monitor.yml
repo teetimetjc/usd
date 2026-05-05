@@ -26,6 +26,6 @@ jobs:
 
       - name: Run EMA crossover check
         env:
-          # Store your ntfy.sh topic name as a GitHub Secret called NTFY_TOPIC
-          NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
+          PUSHOVER_TOKEN: ${{ secrets.PUSHOVER_TOKEN }}
+          PUSHOVER_USER_KEY: ${{ secrets.PUSHOVER_USER_KEY }}
         run: python -c "import eur_usd_ema_monitor as m; m.check_ema_crossover()"

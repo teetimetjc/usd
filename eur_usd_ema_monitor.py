@@ -35,8 +35,9 @@ except Exception:
     notify = None
     NOTIFY_AVAILABLE = False
 
-# ntfy.sh topic is read from the NTFY_TOPIC environment variable (set as a GitHub Secret)
-NTFY_TOPIC = os.environ.get("NTFY_TOPIC", "")
+# Pushover credentials — stored as GitHub Secrets (PUSHOVER_TOKEN and PUSHOVER_USER_KEY)
+PUSHOVER_TOKEN = os.environ.get("PUSHOVER_TOKEN", "")
+PUSHOVER_USER_KEY = os.environ.get("PUSHOVER_USER_KEY", "")
 
 # ── Configuration ──────────────────────────────────────────────────────────────
 
@@ -112,34 +113,34 @@ def detect_crossover(df: pd.DataFrame) -> str | None:
 
 def send_notification(signal: str, price: float, timestamp: str) -> None:
     """
-    Send a push notification via ntfy.sh (GitHub Actions) or notify-run (local).
-    ntfy.sh is tried first if the NTFY_TOPIC env var is set.
+    Send a push notification via Pushover (GitHub Actions) or notify-run (local).
+    Pushover is used when PUSHOVER_TOKEN and PUSHOVER_USER_KEY env vars are set.
     """
-    emoji = "🟢" if signal == "buy" else "🔴"
     action = "BUY" if signal == "buy" else "SELL"
     message = (
-        f"{emoji} EUR/USD {action} SIGNAL\n"
+        f"EUR/USD {action} SIGNAL\n"
         f"Price: {price:.5f}\n"
         f"Time:  {timestamp}"
     )
 
-    # ── ntfy.sh (used in GitHub Actions via the NTFY_TOPIC secret) ──
-    if NTFY_TOPIC:
+    # ── Pushover (used in GitHub Actions via repository secrets) ──
+    if PUSHOVER_TOKEN and PUSHOVER_USER_KEY:
         try:
             resp = requests.post(
-                f"https://ntfy.sh/{NTFY_TOPIC}",
-                data=message.encode("utf-8"),
-                headers={
-                    "Title": f"EUR/USD {action} Signal",
-                    "Priority": "high",
-                    "Tags": "chart_with_upwards_trend",
+                "https://api.pushover.net/1/messages.json",
+                data={
+                    "token": PUSHOVER_TOKEN,
+                    "user": PUSHOVER_USER_KEY,
+                    "title": f"EUR/USD {action} Signal",
+                    "message": message,
+                    "priority": 1,   # high priority — bypasses quiet hours
                 },
                 timeout=10,
             )
             resp.raise_for_status()
-            print(f"  [NOTIFICATION SENT via ntfy.sh] {message}")
+            print(f"  [NOTIFICATION SENT via Pushover] {message}")
         except Exception as exc:
-            print(f"  [WARNING] ntfy.sh notification failed: {exc}")
+            print(f"  [WARNING] Pushover notification failed: {exc}")
         return
 
     # ── notify-run (local fallback) ──
