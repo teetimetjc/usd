@@ -35,9 +35,9 @@ except Exception:
 PUSHOVER_TOKEN    = os.environ.get("PUSHOVER_TOKEN", "")
 PUSHOVER_USER_KEY = os.environ.get("PUSHOVER_USER_KEY", "")
 
-# Google Sheets — credentials JSON and sheet ID stored as GitHub Secrets
+# Google Sheets — credentials JSON stored as a GitHub Secret; sheet ID is hardcoded
 GOOGLE_CREDENTIALS = os.environ.get("GOOGLE_CREDENTIALS", "")
-GOOGLE_SHEET_ID    = os.environ.get("GOOGLE_SHEET_ID", "")
+GOOGLE_SHEET_ID    = "1-hVtI0klxQfmJtZCRA4U1gnKeMEG6GoMzjg8WdvbqqU"
 
 # Set TEST_NOTIFICATION=true in workflow_dispatch inputs to verify Pushover
 TEST_NOTIFICATION = os.environ.get("TEST_NOTIFICATION", "").lower() == "true"

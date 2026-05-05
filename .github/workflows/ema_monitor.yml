@@ -43,6 +43,5 @@ jobs:
           PUSHOVER_TOKEN: ${{ secrets.PUSHOVER_TOKEN }}
           PUSHOVER_USER_KEY: ${{ secrets.PUSHOVER_USER_KEY }}
           GOOGLE_CREDENTIALS: ${{ secrets.GOOGLE_CREDENTIALS }}
-          GOOGLE_SHEET_ID: ${{ secrets.GOOGLE_SHEET_ID }}
           TEST_NOTIFICATION: ${{ inputs.test_notification }}
         run: python -c "import eur_usd_ema_monitor as m; m.check_ema_crossover()"
