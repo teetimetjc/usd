@@ -112,15 +112,30 @@ def detect_crossover(df: pd.DataFrame) -> str | None:
     return None
 
 
-def send_notification(signal: str, price: float, timestamp: str) -> None:
+def send_notification(signal: str, price: float, timestamp: str, ema20: float = 0, ema50: float = 0) -> None:
     """
     Send a push notification via Pushover (GitHub Actions) or notify-run (local).
-    Pushover is used when PUSHOVER_TOKEN and PUSHOVER_USER_KEY env vars are set.
+    signal can be 'buy', 'sell', or 'status' (no crossover, metrics only).
     """
-    action = "BUY" if signal == "buy" else "SELL"
+    if signal == "buy":
+        title = "EUR/USD BUY Signal"
+        header = "BUY — EMA 20 crossed ABOVE EMA 50"
+        priority = 1
+    elif signal == "sell":
+        title = "EUR/USD SELL Signal"
+        header = "SELL — EMA 20 crossed BELOW EMA 50"
+        priority = 1
+    else:
+        title = "EUR/USD Status Update"
+        trend = "above" if ema20 > ema50 else "below"
+        header = f"No signal — EMA 20 is {trend} EMA 50"
+        priority = -1  # low priority, no sound for routine updates
+
     message = (
-        f"EUR/USD {action} SIGNAL\n"
+        f"{header}\n"
         f"Price: {price:.5f}\n"
+        f"EMA20: {ema20:.5f}\n"
+        f"EMA50: {ema50:.5f}\n"
         f"Time:  {timestamp}"
     )
 
@@ -132,9 +147,9 @@ def send_notification(signal: str, price: float, timestamp: str) -> None:
                 data={
                     "token": PUSHOVER_TOKEN,
                     "user": PUSHOVER_USER_KEY,
-                    "title": f"EUR/USD {action} Signal",
+                    "title": title,
                     "message": message,
-                    "priority": 1,   # high priority — bypasses quiet hours
+                    "priority": priority,
                 },
                 timeout=10,
             )
@@ -205,18 +220,14 @@ def check_ema_crossover() -> None:
     if signal:
         label = "BUY  (EMA 20 crossed ABOVE EMA 50)" if signal == "buy" else "SELL (EMA 20 crossed BELOW EMA 50)"
         print(f"  *** SIGNAL: {label} ***")
-        print(f"  Price : {current_price:.5f}")
-        print(f"  EMA 20: {ema20:.5f}")
-        print(f"  EMA 50: {ema50:.5f}")
-        print(f"  Time  : {timestamp}")
-        send_notification(signal, current_price, timestamp)
     else:
-        # Status update so you can confirm the script is running
         trend = "above" if ema20 > ema50 else "below"
         print(f"  No crossover.  EMA 20 is {trend} EMA 50.")
-        print(f"  Price : {current_price:.5f}")
-        print(f"  EMA 20: {ema20:.5f}")
-        print(f"  EMA 50: {ema50:.5f}")
+
+    print(f"  Price : {current_price:.5f}")
+    print(f"  EMA 20: {ema20:.5f}")
+    print(f"  EMA 50: {ema50:.5f}")
+    send_notification(signal or "status", current_price, timestamp, ema20, ema50)
 
     print(f"{'='*55}")
 
