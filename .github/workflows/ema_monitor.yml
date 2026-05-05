@@ -1,0 +1,31 @@
+name: EUR/USD EMA Monitor
+
+on:
+  # Run every hour from 8 AM to 12 PM EST (13:00–17:00 UTC), Mon–Fri
+  # Note: during daylight saving time (EDT = UTC-4) this shifts to 9 AM–1 PM
+  schedule:
+    - cron: '0 13,14,15,16,17 * * 1-5'
+  # Also allows a manual run from the GitHub Actions UI for testing
+  workflow_dispatch:
+
+jobs:
+  check-ema:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install yfinance pandas pytz requests
+
+      - name: Run EMA crossover check
+        env:
+          # Store your ntfy.sh topic name as a GitHub Secret called NTFY_TOPIC
+          NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
+        run: python -c "import eur_usd_ema_monitor as m; m.check_ema_crossover()"

@@ -16,10 +16,12 @@ Setup:
        python eur_usd_ema_monitor.py
 """
 
+import os
 import time
 import datetime
 
 import pytz
+import requests
 import schedule
 import yfinance as yf
 import pandas as pd
@@ -32,6 +34,9 @@ try:
 except Exception:
     notify = None
     NOTIFY_AVAILABLE = False
+
+# ntfy.sh topic is read from the NTFY_TOPIC environment variable (set as a GitHub Secret)
+NTFY_TOPIC = os.environ.get("NTFY_TOPIC", "")
 
 # ── Configuration ──────────────────────────────────────────────────────────────
 
@@ -106,7 +111,10 @@ def detect_crossover(df: pd.DataFrame) -> str | None:
 
 
 def send_notification(signal: str, price: float, timestamp: str) -> None:
-    """Send a push notification to the registered notify-run channel."""
+    """
+    Send a push notification via ntfy.sh (GitHub Actions) or notify-run (local).
+    ntfy.sh is tried first if the NTFY_TOPIC env var is set.
+    """
     emoji = "🟢" if signal == "buy" else "🔴"
     action = "BUY" if signal == "buy" else "SELL"
     message = (
@@ -114,15 +122,35 @@ def send_notification(signal: str, price: float, timestamp: str) -> None:
         f"Price: {price:.5f}\n"
         f"Time:  {timestamp}"
     )
+
+    # ── ntfy.sh (used in GitHub Actions via the NTFY_TOPIC secret) ──
+    if NTFY_TOPIC:
+        try:
+            resp = requests.post(
+                f"https://ntfy.sh/{NTFY_TOPIC}",
+                data=message.encode("utf-8"),
+                headers={
+                    "Title": f"EUR/USD {action} Signal",
+                    "Priority": "high",
+                    "Tags": "chart_with_upwards_trend",
+                },
+                timeout=10,
+            )
+            resp.raise_for_status()
+            print(f"  [NOTIFICATION SENT via ntfy.sh] {message}")
+        except Exception as exc:
+            print(f"  [WARNING] ntfy.sh notification failed: {exc}")
+        return
+
+    # ── notify-run (local fallback) ──
     if not NOTIFY_AVAILABLE:
-        print("  [NOTIFICATION SKIPPED] notify-run not configured.")
+        print("  [NOTIFICATION SKIPPED] No notification service configured.")
         return
     try:
         notify.send(message)
-        print(f"  [NOTIFICATION SENT] {message}")
+        print(f"  [NOTIFICATION SENT via notify-run] {message}")
     except Exception as exc:
-        # Notification failure should never crash the monitor
-        print(f"  [WARNING] Notification failed: {exc}")
+        print(f"  [WARNING] notify-run notification failed: {exc}")
 
 
 # ── Main check (runs every hour) ───────────────────────────────────────────────
