@@ -60,6 +60,10 @@ def fetch_price_data() -> pd.DataFrame | None:
     if df is None or df.empty:
         print("  [ERROR] Could not fetch price data.")
         return None
+    # Newer yfinance versions return MultiIndex columns like ("Close", "EURUSD=X").
+    # Flatten to simple column names so the rest of the code works consistently.
+    if isinstance(df.columns, pd.MultiIndex):
+        df.columns = df.columns.get_level_values(0)
     return df
 
 
@@ -220,12 +224,9 @@ def check_ema_crossover() -> None:
 
     # All metrics are now from the last FULLY CLOSED candle
     latest = df.iloc[-1]
-    def scalar(val):
-        return float(val.iloc[0]) if hasattr(val, "iloc") else float(val)
-
-    price = scalar(latest["Close"])
-    ema20 = scalar(latest["EMA_20"])
-    ema50 = scalar(latest["EMA_50"])
+    price = float(latest["Close"])
+    ema20 = float(latest["EMA_20"])
+    ema50 = float(latest["EMA_50"])
 
     # ── Detect crossover ──
     signal = detect_crossover(df)
