@@ -162,11 +162,34 @@ def send_notification(signal: str, price: float, timestamp: str,
 
 # ── Google Sheets logging ──────────────────────────────────────────────────────
 
+def build_reason(signal: str, ema20: float, ema50: float) -> str:
+    """Return a plain-English explanation of the signal for the Reason column."""
+    gap = ema20 - ema50
+    gap_pips = abs(gap) * 10000  # 1 pip = 0.0001 for EUR/USD
+    direction = "above" if ema20 > ema50 else "below"
+
+    if signal == "buy":
+        return (
+            f"EMA 20 just crossed ABOVE EMA 50 — momentum shifted bullish. "
+            f"Gap: +{gap_pips:.1f} pips."
+        )
+    elif signal == "sell":
+        return (
+            f"EMA 20 just crossed BELOW EMA 50 — momentum shifted bearish. "
+            f"Gap: -{gap_pips:.1f} pips."
+        )
+    else:
+        return (
+            f"No crossover. EMA 20 is {direction} EMA 50 "
+            f"by {gap_pips:.1f} pips — trend continuing."
+        )
+
+
 def log_to_sheets(timestamp: str, price: float, ema20: float, ema50: float,
                   signal: str) -> None:
     """
     Append one row to the Google Sheet:
-      Timestamp | Price | EMA 20 | EMA 50 | Signal
+      Timestamp | Price | EMA 20 | EMA 50 | EMA Gap | Signal | Reason
     Requires GOOGLE_CREDENTIALS (service account JSON) and GOOGLE_SHEET_ID.
     """
     if not GOOGLE_CREDENTIALS or not GOOGLE_SHEET_ID:
@@ -182,14 +205,19 @@ def log_to_sheets(timestamp: str, price: float, ema20: float, ema50: float,
         # Write headers automatically if the sheet is empty
         if sheet.row_count == 0 or sheet.cell(1, 1).value is None:
             sheet.insert_row(
-                ["Timestamp", "Price", "EMA 20", "EMA 50", "Signal"], index=1
+                ["Timestamp", "Price", "EMA 20", "EMA 50", "EMA Gap (pips)", "Signal", "Reason"],
+                index=1,
             )
 
+        gap_pips = round((ema20 - ema50) * 10000, 1)
+        reason   = build_reason(signal, ema20, ema50)
+
         sheet.append_row(
-            [timestamp, round(price, 5), round(ema20, 5), round(ema50, 5), signal.upper()],
+            [timestamp, round(price, 5), round(ema20, 5), round(ema50, 5),
+             gap_pips, signal.upper(), reason],
             value_input_option="USER_ENTERED",
         )
-        print(f"  [SHEETS] Row logged: {timestamp} | {price:.5f} | {signal.upper()}")
+        print(f"  [SHEETS] Row logged: {timestamp} | {price:.5f} | {signal.upper()} | {reason}")
     except Exception as exc:
         print(f"  [WARNING] Google Sheets logging failed: {exc}")
 
