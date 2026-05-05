@@ -1,11 +1,7 @@
 name: EUR/USD EMA Monitor
 
 on:
-  # Run every hour from 8 AM to 12 PM EST (13:00–17:00 UTC), Mon–Fri
-  # Note: during daylight saving time (EDT = UTC-4) this shifts to 9 AM–1 PM
-  schedule:
-    - cron: '0 13,14,15,16,17 * * 1-5'
-  # Also allows a manual run from the GitHub Actions UI for testing
+  # Manual trigger only — re-enable the schedule block below once confirmed working
   workflow_dispatch:
 
 jobs:
