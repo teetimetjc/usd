@@ -191,11 +191,6 @@ def check_ema_crossover() -> None:
         send_notification("buy", 1.08000, timestamp + " [TEST]")
         return
 
-    # Skip outside market hours
-    if not is_market_hours():
-        print("  Outside market hours — skipping.")
-        return
-
     # ── Fetch & process ──
     df = fetch_price_data()
     if df is None:
