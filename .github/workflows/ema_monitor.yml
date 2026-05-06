@@ -1,10 +1,8 @@
 name: EUR/USD EMA Monitor
 
 on:
-  # 9 runs/day: every hour 8 AM–4 PM EST (13:00–21:00 UTC), Mon–Fri
-  # Note: during EDT (UTC-4) this shifts to 9 AM–5 PM
-  schedule:
-    - cron: '0 13-21 * * 1-5'
+  # Triggered externally by cron-job.org via GitHub API workflow_dispatch
+  # POST https://api.github.com/repos/teetimetjc/usd/actions/workflows/ema_monitor.yml/dispatches
   workflow_dispatch:
     inputs:
       test_notification:
