@@ -21,8 +21,8 @@ CAPITAL   = 1000     # simulated starting capital in USD
 
 # ── Fetch & prepare data ───────────────────────────────────────────────────────
 
-print("Downloading 90 days of EUR/USD hourly data...")
-df = yf.download(TICKER, period="90d", interval="1h", progress=False, auto_adjust=True)
+print("Downloading 1 year of EUR/USD hourly data...")
+df = yf.download(TICKER, period="1y", interval="1h", progress=False, auto_adjust=True)
 
 if isinstance(df.columns, pd.MultiIndex):
     df.columns = df.columns.get_level_values(0)
