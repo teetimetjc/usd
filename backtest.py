@@ -1,8 +1,12 @@
 """
 EUR/USD EMA 20/50 Crossover Backtest — last 90 days of hourly data
 -------------------------------------------------------------------
-Simulates every trade that would have been triggered by the crossover
-strategy and reports P&L per trade and overall totals.
+Simulates every trade triggered by EMA crossovers and reports
+P&L per trade and overall totals.
+
+Two strategies shown:
+  Long-only  — buy on BUY signal, exit on SELL signal
+  Long+Short — buy on BUY signal, sell/short on SELL signal
 """
 
 import yfinance as yf
@@ -15,7 +19,7 @@ EMA_SHORT = 20
 EMA_LONG  = 50
 CAPITAL   = 1000     # simulated starting capital in USD
 
-# ── Fetch data ─────────────────────────────────────────────────────────────────
+# ── Fetch & prepare data ───────────────────────────────────────────────────────
 
 print("Downloading 90 days of EUR/USD hourly data...")
 df = yf.download(TICKER, period="90d", interval="1h", progress=False, auto_adjust=True)
@@ -26,128 +30,145 @@ if isinstance(df.columns, pd.MultiIndex):
 df["EMA_20"] = df["Close"].ewm(span=EMA_SHORT, adjust=False).mean()
 df["EMA_50"] = df["Close"].ewm(span=EMA_LONG,  adjust=False).mean()
 df.dropna(subset=["EMA_20", "EMA_50"], inplace=True)
-
-# Drop the currently forming candle
-df = df.iloc[:-1].copy()
+df = df.iloc[:-1].copy()  # drop forming candle
 
 print(f"Loaded {len(df)} closed hourly candles.\n")
 
-# ── Detect all crossovers ──────────────────────────────────────────────────────
+# ── Detect crossover signals ───────────────────────────────────────────────────
 
-df["above"] = df["EMA_20"] > df["EMA_50"]
+df["above"]  = df["EMA_20"] > df["EMA_50"]
 df["signal"] = None
 
 for i in range(1, len(df)):
-    prev_above = df["above"].iloc[i - 1]
-    curr_above = df["above"].iloc[i]
-    if not prev_above and curr_above:
+    if not df["above"].iloc[i-1] and df["above"].iloc[i]:
         df.iloc[i, df.columns.get_loc("signal")] = "buy"
-    elif prev_above and not curr_above:
+    elif df["above"].iloc[i-1] and not df["above"].iloc[i]:
         df.iloc[i, df.columns.get_loc("signal")] = "sell"
 
 signals = df[df["signal"].notna()].copy()
 print(f"Found {len(signals)} crossover signals.\n")
 
-# ── Simulate trades ────────────────────────────────────────────────────────────
-# Enter on BUY, exit on the next SELL (and vice versa for short trades).
+# ── Simulation helper ──────────────────────────────────────────────────────────
 
-trades = []
-position = None  # {'type': 'long'/'short', 'entry_price': x, 'entry_time': t}
+def simulate(signals, df, mode="long_only"):
+    """
+    mode='long_only'  — only take long (buy) trades, skip shorting
+    mode='long_short' — go long on BUY, flip to short on SELL
+    """
+    trades   = []
+    position = None   # None, or dict with type/entry_price/entry_time
 
-for _, row in signals.iterrows():
-    if row["signal"] == "buy":
-        if position is None:
-            position = {
-                "type":        "long",
-                "entry_price": row["Close"],
-                "entry_time":  row.name,
-            }
-    elif row["signal"] == "sell":
-        if position and position["type"] == "long":
-            # Close the long trade
-            entry = position["entry_price"]
-            exit_ = row["Close"]
-            pips  = (exit_ - entry) * 10000
-            pct   = (exit_ - entry) / entry * 100
-            trades.append({
-                "type":        "LONG",
-                "entry_time":  position["entry_time"],
-                "exit_time":   row.name,
-                "entry_price": round(entry, 5),
-                "exit_price":  round(exit_, 5),
-                "pips":        round(pips, 1),
-                "pct":         round(pct, 4),
-            })
-            position = None
-        # Open a short trade
-        position = {
-            "type":        "short",
-            "entry_price": row["Close"],
-            "entry_time":  row.name,
-        }
-    # If a buy signal arrives while short, close short and go long
-    if row["signal"] == "buy" and position and position["type"] == "short":
-        # Already handled above — this case means we had a short open
-        pass
+    for _, row in signals.iterrows():
+        sig   = row["signal"]
+        price = float(row["Close"])
+        time  = row.name
 
-# Close any open position at the last available price
-if position:
-    last_row   = df.iloc[-1]
-    entry      = position["entry_price"]
-    exit_      = float(last_row["Close"])
-    multiplier = 1 if position["type"] == "long" else -1
-    pips       = (exit_ - entry) * 10000 * multiplier
-    pct        = (exit_ - entry) / entry * 100 * multiplier
-    trades.append({
-        "type":        position["type"].upper() + " (open)",
-        "entry_time":  position["entry_time"],
-        "exit_time":   last_row.name,
-        "entry_price": round(entry, 5),
-        "exit_price":  round(exit_, 5),
-        "pips":        round(pips, 1),
-        "pct":         round(pct, 4),
-    })
+        if sig == "buy":
+            if position is None:
+                # No position — open long
+                position = {"type": "long", "entry_price": price, "entry_time": time}
 
-# ── Print results ──────────────────────────────────────────────────────────────
+            elif position["type"] == "short" and mode == "long_short":
+                # Close short, open long
+                pips = (position["entry_price"] - price) * 10000  # short profits when price falls
+                trades.append({
+                    "type":        "SHORT",
+                    "entry_time":  position["entry_time"],
+                    "exit_time":   time,
+                    "entry_price": round(position["entry_price"], 5),
+                    "exit_price":  round(price, 5),
+                    "pips":        round(pips, 1),
+                    "pct":         round(-((price - position["entry_price"]) / position["entry_price"]) * 100, 4),
+                })
+                position = {"type": "long", "entry_price": price, "entry_time": time}
 
-print(f"{'─'*95}")
-print(f"{'Type':<16} {'Entry Time':<22} {'Exit Time':<22} {'Entry':>8} {'Exit':>8} {'Pips':>8} {'%':>7}")
-print(f"{'─'*95}")
+        elif sig == "sell":
+            if position and position["type"] == "long":
+                # Close long
+                pips = (price - position["entry_price"]) * 10000
+                trades.append({
+                    "type":        "LONG",
+                    "entry_time":  position["entry_time"],
+                    "exit_time":   time,
+                    "entry_price": round(position["entry_price"], 5),
+                    "exit_price":  round(price, 5),
+                    "pips":        round(pips, 1),
+                    "pct":         round(((price - position["entry_price"]) / position["entry_price"]) * 100, 4),
+                })
+                position = None
 
-total_pips = 0
-wins = 0
-losses = 0
+            if mode == "long_short":
+                # Open short
+                position = {"type": "short", "entry_price": price, "entry_time": time}
 
-for t in trades:
-    total_pips += t["pips"]
-    if t["pips"] > 0:
-        wins += 1
-    else:
-        losses += 1
-    print(
-        f"{t['type']:<16} "
-        f"{str(t['entry_time'])[:19]:<22} "
-        f"{str(t['exit_time'])[:19]:<22} "
-        f"{t['entry_price']:>8.5f} "
-        f"{t['exit_price']:>8.5f} "
-        f"{t['pips']:>+8.1f} "
-        f"{t['pct']:>+7.3f}%"
-    )
+    # Close any open position at last available price
+    if position:
+        last_price = float(df.iloc[-1]["Close"])
+        last_time  = df.iloc[-1].name
+        if position["type"] == "long":
+            pips = (last_price - position["entry_price"]) * 10000
+            pct  = ((last_price - position["entry_price"]) / position["entry_price"]) * 100
+        else:
+            pips = (position["entry_price"] - last_price) * 10000
+            pct  = -((last_price - position["entry_price"]) / position["entry_price"]) * 100
+        trades.append({
+            "type":        position["type"].upper() + " (open)",
+            "entry_time":  position["entry_time"],
+            "exit_time":   last_time,
+            "entry_price": round(position["entry_price"], 5),
+            "exit_price":  round(last_price, 5),
+            "pips":        round(pips, 1),
+            "pct":         round(pct, 4),
+        })
 
-print(f"{'─'*95}")
-print(f"\nTotal trades : {len(trades)}  ({wins} wins, {losses} losses)")
-print(f"Win rate     : {wins/len(trades)*100:.1f}%" if trades else "")
-print(f"Total pips   : {total_pips:+.1f}")
+    return trades
 
-# P&L on $1,000 no leverage
-pnl_no_lev = CAPITAL * (total_pips / 10000)
-# P&L on $1,000 with 10:1 leverage (controlling $10,000)
-pnl_10x    = CAPITAL * (total_pips / 10000) * 10
-# P&L on $1,000 with 50:1 leverage (controlling $50,000)
-pnl_50x    = CAPITAL * (total_pips / 10000) * 50
 
-print(f"\n── Simulated P&L on ${CAPITAL:,} starting capital ──")
-print(f"  No leverage (1:1) : ${pnl_no_lev:+.2f}")
-print(f"  10:1 leverage     : ${pnl_10x:+.2f}")
-print(f"  50:1 leverage     : ${pnl_50x:+.2f}")
-print(f"\nNote: no spread, commission, or slippage included — real results will be slightly lower.")
+def print_results(trades, label):
+    print(f"\n{'═'*100}")
+    print(f"  {label}")
+    print(f"{'═'*100}")
+    print(f"{'Type':<18} {'Entry Time':<22} {'Exit Time':<22} {'Entry':>8} {'Exit':>8} {'Pips':>8} {'%':>8}")
+    print(f"{'─'*100}")
+
+    total_pips = 0
+    wins = losses = 0
+
+    for t in trades:
+        marker = "✓" if t["pips"] > 0 else "✗"
+        print(
+            f"{t['type']:<18} "
+            f"{str(t['entry_time'])[:19]:<22} "
+            f"{str(t['exit_time'])[:19]:<22} "
+            f"{t['entry_price']:>8.5f} "
+            f"{t['exit_price']:>8.5f} "
+            f"{t['pips']:>+8.1f} "
+            f"{t['pct']:>+8.3f}%  {marker}"
+        )
+        total_pips += t["pips"]
+        if "(open)" not in t["type"]:
+            if t["pips"] > 0: wins += 1
+            else: losses += 1
+
+    closed = wins + losses
+    print(f"{'─'*100}")
+    print(f"Closed trades : {closed}  ({wins} wins, {losses} losses)  |  Win rate: {wins/closed*100:.1f}%" if closed else "No closed trades")
+    print(f"Total pips    : {total_pips:+.1f}")
+
+    pnl_1x  = CAPITAL * (total_pips / 10000)
+    pnl_10x = pnl_1x * 10
+    pnl_50x = pnl_1x * 50
+
+    print(f"\n  P&L on ${CAPITAL:,} — no leverage : ${pnl_1x:+.2f}")
+    print(f"  P&L on ${CAPITAL:,} — 10:1 leverage : ${pnl_10x:+.2f}")
+    print(f"  P&L on ${CAPITAL:,} — 50:1 leverage : ${pnl_50x:+.2f}")
+    print(f"\n  * No spread, commission, or slippage included.")
+
+
+# ── Run both strategies ────────────────────────────────────────────────────────
+
+long_only_trades   = simulate(signals, df, mode="long_only")
+long_short_trades  = simulate(signals, df, mode="long_short")
+
+print_results(long_only_trades,  "LONG-ONLY strategy (buy on BUY signal, exit on SELL signal)")
+print_results(long_short_trades, "LONG + SHORT strategy (flip direction on every crossover)")
