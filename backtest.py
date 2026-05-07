@@ -79,10 +79,10 @@ print(f"Loaded {len(df)} closed hourly candles.\n")
 
 def get_daily_bullish(ts) -> bool | None:
     """Return daily trend (True=bullish) on the date of ts, or None if unavailable."""
-    date = ts.normalize() if hasattr(ts, "normalize") else pd.Timestamp(ts).normalize()
+    # Strip timezone so we can compare against the tz-naive daily index
+    date = pd.Timestamp(ts).replace(tzinfo=None).normalize()
     if date in daily_raw.index:
         return bool(daily_raw.loc[date, "daily_bullish"])
-    # fall back to the most recent available daily bar before this date
     prior = daily_raw[daily_raw.index <= date]
     if prior.empty:
         return None
