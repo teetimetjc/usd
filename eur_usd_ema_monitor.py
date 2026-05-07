@@ -161,7 +161,7 @@ def build_reason(signal: str, ema20: float, ema50: float,
                 f"ADX: {adx:.1f}. Daily trend: {daily_str}.")
 
     if stop_loss:
-        base += f" Suggested stop loss: {stop_loss:.5f}."
+        base += f" Emergency stop (worst case): {stop_loss:.5f} — hold until opposite signal fires."
 
     return base
 
@@ -184,7 +184,7 @@ def send_notification(signal: str, price: float, timestamp: str,
 
     gap_pips   = (ema20 - ema50) * 10000
     daily_str  = "Bullish" if daily_bullish else ("Bearish" if daily_bullish is False else "N/A")
-    stop_str   = f"\nStop:     {stop_loss:.5f}" if stop_loss else ""
+    stop_str   = f"\nEmerg.stop: {stop_loss:.5f} (worst case — hold til opp. signal)" if stop_loss else ""
 
     message = (
         f"{reason}\n\n"
