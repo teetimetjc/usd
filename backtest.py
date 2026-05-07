@@ -133,14 +133,16 @@ print(f"Found {len(signals)} confirmed+filtered signals.\n")
 
 # ── Simulation ─────────────────────────────────────────────────────────────────
 
-def simulate(signals: pd.DataFrame, df: pd.DataFrame, mode="long_only"):
+def simulate(signals: pd.DataFrame, df: pd.DataFrame,
+             mode="long_only", atr_mult: float | None = ATR_MULTIPLIER):
+    """
+    mode      = 'long_only' | 'long_short'
+    atr_mult  = ATR stop multiplier, or None to disable stops entirely
+    """
     trades   = []
     position = None
 
-    sig_times = set(signals["time"])
-
-    # Build a fast lookup: timestamp → row data
-    df_dict = {row.Index: row for row in df.itertuples()}
+    df_dict   = {row.Index: row for row in df.itertuples()}
     all_times = list(df.index)
 
     def close_trade(pos, exit_price, exit_time, reason="signal"):
@@ -166,13 +168,12 @@ def simulate(signals: pd.DataFrame, df: pd.DataFrame, mode="long_only"):
     for ts in all_times:
         if ts not in df_dict:
             continue
-        row = df_dict[ts]
+        row  = df_dict[ts]
         low  = float(row.Low)
         high = float(row.High)
-        close = float(row.Close)
 
-        # Check stop loss hit on open position (use candle low/high)
-        if position is not None:
+        # Check ATR stop (only when stops are enabled)
+        if position is not None and atr_mult is not None:
             stop = position["stop"]
             if position["type"] == "long" and low <= stop:
                 trades.append(close_trade(position, stop, ts, "stop"))
@@ -181,7 +182,7 @@ def simulate(signals: pd.DataFrame, df: pd.DataFrame, mode="long_only"):
                 trades.append(close_trade(position, stop, ts, "stop"))
                 position = None
 
-        # Check if this bar has a signal
+        # Process signal for this bar
         if next_sig is not None and next_sig[1]["time"] == ts:
             _, sig_row = next_sig
             sig   = sig_row["signal"]
@@ -189,25 +190,26 @@ def simulate(signals: pd.DataFrame, df: pd.DataFrame, mode="long_only"):
             atr   = float(sig_row["atr"])
             next_sig = next(sig_iter, None)
 
+            stop_long  = (price - atr_mult * atr) if atr_mult else None
+            stop_short = (price + atr_mult * atr) if atr_mult else None
+
             if sig == "buy":
-                stop = price - ATR_MULTIPLIER * atr
                 if position is None:
-                    position = {"type": "long", "entry_price": price, "entry_time": ts, "stop": stop}
+                    position = {"type": "long",  "entry_price": price, "entry_time": ts, "stop": stop_long}
                 elif position["type"] == "short" and mode == "long_short":
                     trades.append(close_trade(position, price, ts))
-                    position = {"type": "long", "entry_price": price, "entry_time": ts, "stop": stop}
+                    position = {"type": "long",  "entry_price": price, "entry_time": ts, "stop": stop_long}
 
             elif sig == "sell":
-                stop = price + ATR_MULTIPLIER * atr
                 if position is not None and position["type"] == "long":
                     trades.append(close_trade(position, price, ts))
                     position = None
                 if mode == "long_short" and position is None:
-                    position = {"type": "short", "entry_price": price, "entry_time": ts, "stop": stop}
+                    position = {"type": "short", "entry_price": price, "entry_time": ts, "stop": stop_short}
 
-    # Close open position at last price
+    # Close any open position at the last available price
     if position:
-        last = df.iloc[-1]
+        last       = df.iloc[-1]
         last_price = float(last["Close"])
         last_time  = last.name
         trades.append(close_trade(position, last_price, last_time, "open"))
@@ -215,7 +217,7 @@ def simulate(signals: pd.DataFrame, df: pd.DataFrame, mode="long_only"):
     return trades
 
 
-def print_results(trades, label):
+def print_results(trades, label, stop_label=""):
     print(f"\n{'═'*110}")
     print(f"  {label}")
     print(f"{'═'*110}")
@@ -250,7 +252,8 @@ def print_results(trades, label):
     closed = wins + losses
     print(f"{'─'*110}")
     if closed:
-        print(f"Closed trades : {closed}  ({wins} wins, {losses} losses)  |  Win rate: {wins/closed*100:.1f}%  |  Stop-outs: {stops}")
+        stop_note = f"  |  Stop-outs: {stops}" if stops else ""
+        print(f"Closed trades : {closed}  ({wins} wins, {losses} losses)  |  Win rate: {wins/closed*100:.1f}%{stop_note}")
     else:
         print("No closed trades")
     print(f"Total pips    : {total_pips:+.1f}")
@@ -263,13 +266,19 @@ def print_results(trades, label):
     print(f"  P&L on ${CAPITAL:,} — 10:1 leverage : ${pnl_10x:+.2f}")
     print(f"  P&L on ${CAPITAL:,} — 50:1 leverage : ${pnl_50x:+.2f}")
     print(f"\n  * No spread, commission, or slippage included.")
-    print(f"  * Filters: ADX > {ADX_THRESHOLD}, daily EMA alignment, 2-candle confirm, ATR {ATR_MULTIPLIER}x stop")
+    print(f"  * Filters: ADX > {ADX_THRESHOLD}, daily EMA alignment, 2-candle confirm{stop_label}")
 
 
-# ── Run both strategies ────────────────────────────────────────────────────────
+# ── Run all four scenarios ─────────────────────────────────────────────────────
 
-long_only_trades  = simulate(signals, df, mode="long_only")
-long_short_trades = simulate(signals, df, mode="long_short")
+WIDE_MULT = 3.0   # wider ATR stop to give trades more room
 
-print_results(long_only_trades,  "LONG-ONLY strategy  (buy on BUY signal, exit on SELL or stop)")
-print_results(long_short_trades, "LONG + SHORT strategy  (flip direction on every signal, stop applies)")
+scenarios = [
+    (simulate(signals, df, mode="long_only",  atr_mult=None),     "SCENARIO A — Long-Only  |  NO STOP  (exit on opposite signal only)",      ""),
+    (simulate(signals, df, mode="long_short", atr_mult=None),     "SCENARIO B — Long+Short |  NO STOP  (exit on opposite signal only)",      ""),
+    (simulate(signals, df, mode="long_only",  atr_mult=WIDE_MULT),f"SCENARIO C — Long-Only  |  ATR {WIDE_MULT}x STOP  (wider stop)",         f", ATR {WIDE_MULT}x stop"),
+    (simulate(signals, df, mode="long_short", atr_mult=WIDE_MULT),f"SCENARIO D — Long+Short |  ATR {WIDE_MULT}x STOP  (wider stop)",         f", ATR {WIDE_MULT}x stop"),
+]
+
+for trades, label, stop_label in scenarios:
+    print_results(trades, label, stop_label)
