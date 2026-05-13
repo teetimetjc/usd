@@ -56,7 +56,7 @@ HOLDINGS = {
 PUSHOVER_USER      = os.environ.get("PUSHOVER_USER", "")
 PUSHOVER_TOKEN     = os.environ.get("PUSHOVER_TOKEN", "")
 GOOGLE_CREDENTIALS = os.environ.get("GOOGLE_CREDENTIALS", "")
-GOOGLE_SHEET_ID    = "11DeKby2ahmElsZFDNgaytJWCSpB_jgYspd1bTUq2yrg"
+GOOGLE_SHEET_ID    = os.environ.get("GOOGLE_SHEET_ID", "")
 
 DAILY_RISK_BUDGET = 100
 daily_spent = 0
