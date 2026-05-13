@@ -1,11 +1,7 @@
 name: Stock Scanner
 
 on:
-  schedule:
-    # Every 20 minutes, Mon–Fri, 9 AM–5 PM ET (UTC-5/4 depending on DST)
-    # 13:00–21:00 UTC covers both EST and EDT with buffer
-    - cron: '0,20,40 13-21 * * 1-5'
-  workflow_dispatch:  # also runnable manually from the Actions tab
+  workflow_dispatch:  # manual trigger only — run from the Actions tab
 
 jobs:
   scan:
