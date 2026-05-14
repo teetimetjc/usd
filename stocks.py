@@ -318,7 +318,9 @@ def log_to_sheet(ticker, name, price, vwap_diff, rsi5, vol_ratio, pl_pct,
 
         print(f"  [SHEETS] {ticker} | Quick: {quick_signal} | Long: {long_signal}")
     except Exception as exc:
+        import traceback
         print(f"  [WARNING] Sheets failed: {exc}")
+        print(traceback.format_exc())
 
 # -------------------------------------------------------------------
 # MARKET TIMING
