@@ -61,12 +61,19 @@ GOOGLE_SHEET_ID    = os.environ.get("GOOGLE_SHEET_ID", "")
 DAILY_RISK_BUDGET = 100
 daily_spent = 0
 
-BROAD_ETFS = ["VOO", "QQQ", "VTI", "SPY", "VOOG", "SCHD", "DIA", "GLD", "XLK", "XLV", "VOOV"]
-MEGA_CAPS  = ["AAPL", "TSLA", "AMZN", "MSFT", "GOOGL", "NVDA", "META"]
-HIGH_BETA  = ["SMH", "JPM", "F", "TQQQ", "SOXL"]
+BROAD_ETFS = ["VOO", "QQQ", "VTI", "SPY", "VOOG", "SCHD", "DIA", "GLD", "XLK", "XLV", "VOOV",
+              "SCHG", "ARKK", "IWM", "EFA", "TLT"]
+MEGA_CAPS  = ["AAPL", "TSLA", "AMZN", "MSFT", "GOOGL", "NVDA", "META", "AMD", "PLTR", "COIN"]
+HIGH_BETA  = ["SMH", "JPM", "F", "TQQQ", "SOXL", "SOFI", "MSTR"]
+CRYPTO     = ["BTC-USD", "ETH-USD", "SOL-USD", "XRP-USD", "DOGE-USD", "BNB-USD", "AVAX-USD"]
 
 STOCKS = list(HOLDINGS.keys()) + [
-    "AAPL", "TSLA", "AMZN", "MSFT", "GOOGL", "SCHG", "TQQQ", "SOXL"
+    # Stocks
+    "AAPL", "TSLA", "AMZN", "MSFT", "GOOGL", "AMD", "PLTR", "COIN", "SOFI", "MSTR",
+    # ETFs
+    "SCHG", "TQQQ", "SOXL", "ARKK", "IWM", "EFA", "TLT",
+    # Crypto
+    "BTC-USD", "ETH-USD", "SOL-USD", "XRP-USD", "DOGE-USD", "BNB-USD", "AVAX-USD",
 ]
 
 SHEET_HEADERS = [
@@ -430,13 +437,18 @@ def run_scan():
     print(f"  Scan — {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     print(f"{'='*60}")
 
-    for symbol in STOCKS[:10]:
+    # Fetch all names in one call instead of one per ticker
+    names: dict = {}
+    batch_data = safe_get(
+        "https://query2.finance.yahoo.com/v7/finance/quote?symbols=" + ",".join(STOCKS)
+    )
+    if batch_data and batch_data.get("quoteResponse", {}).get("result"):
+        for r in batch_data["quoteResponse"]["result"]:
+            names[r["symbol"]] = r.get("shortName", r["symbol"])
+
+    for symbol in STOCKS:
         try:
-            # Name lookup
-            quote_data = safe_get(f"https://query2.finance.yahoo.com/v7/finance/quote?symbols={symbol}")
-            name = symbol
-            if quote_data and quote_data.get("quoteResponse", {}).get("result"):
-                name = quote_data["quoteResponse"]["result"][0].get("shortName", symbol)
+            name = names.get(symbol, symbol)
 
             # Intraday 5m chart (5 days)
             data = safe_get(f"https://query2.finance.yahoo.com/v8/finance/chart/{symbol}?interval=5m&range=5d")
