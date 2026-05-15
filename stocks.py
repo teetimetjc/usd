@@ -62,16 +62,21 @@ DAILY_RISK_BUDGET = 100
 daily_spent = 0
 
 BROAD_ETFS = ["VOO", "QQQ", "VTI", "SPY", "VOOG", "SCHD", "DIA", "GLD", "XLK", "XLV", "VOOV",
-              "SCHG", "ARKK", "IWM", "EFA", "TLT"]
-MEGA_CAPS  = ["AAPL", "TSLA", "AMZN", "MSFT", "GOOGL", "NVDA", "META", "AMD", "PLTR", "COIN"]
-HIGH_BETA  = ["SMH", "JPM", "F", "TQQQ", "SOXL", "SOFI", "MSTR"]
+              "SCHG", "ARKK", "IWM", "EFA", "TLT", "VGT", "SOXX", "XLE", "XLF"]
+MEGA_CAPS  = ["AAPL", "TSLA", "AMZN", "MSFT", "GOOGL", "NVDA", "META", "AMD", "PLTR", "COIN",
+              "NFLX", "UBER", "CRM", "LLY", "TSM", "PYPL", "ORCL"]
+HIGH_BETA  = ["SMH", "JPM", "F", "TQQQ", "SOXL", "SOFI", "MSTR",
+              "APP", "SMCI", "HOOD", "HIMS", "RKLB", "CELH", "IONQ", "IBIT"]
 CRYPTO     = ["BTC-USD", "ETH-USD", "SOL-USD", "XRP-USD", "DOGE-USD", "BNB-USD", "AVAX-USD"]
 
 STOCKS = list(HOLDINGS.keys()) + [
-    # Stocks
+    # Mega-cap stocks
     "AAPL", "TSLA", "AMZN", "MSFT", "GOOGL", "AMD", "PLTR", "COIN", "SOFI", "MSTR",
+    "NFLX", "UBER", "CRM", "LLY", "TSM", "PYPL", "ORCL",
+    # High-growth / on the rise
+    "APP", "SMCI", "HOOD", "HIMS", "RKLB", "CELH", "IONQ",
     # ETFs
-    "SCHG", "TQQQ", "SOXL", "ARKK", "IWM", "EFA", "TLT",
+    "SCHG", "TQQQ", "SOXL", "ARKK", "IWM", "EFA", "TLT", "VGT", "SOXX", "IBIT", "XLE", "XLF",
     # Crypto
     "BTC-USD", "ETH-USD", "SOL-USD", "XRP-USD", "DOGE-USD", "BNB-USD", "AVAX-USD",
 ]
