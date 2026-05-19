@@ -45,9 +45,11 @@ TEST_NOTIFICATION  = os.environ.get("TEST_NOTIFICATION", "").lower() == "true"
 TICKER            = "EURUSD=X"
 EMA_SHORT         = 20
 EMA_LONG          = 50
-ADX_THRESHOLD     = 25      # minimum ADX to confirm a real trend is in play
+ADX_THRESHOLD     = 28      # minimum ADX to confirm a real trend is in play
 ATR_MULTIPLIER    = 1.5     # stop loss = entry ± (ATR × this value)
 ADX_PERIOD        = 14      # standard ADX/ATR period
+RSI_PERIOD        = 14
+MIN_EMA_GAP_PIPS  = 3       # minimum pip gap between EMAs before signaling
 INTERVAL          = "1h"
 MARKET_TZ         = pytz.timezone("US/Eastern")
 
@@ -83,11 +85,16 @@ def get_daily_trend() -> bool | None:
 # ── Indicator calculation ──────────────────────────────────────────────────────
 
 def calculate_indicators(df: pd.DataFrame) -> pd.DataFrame:
-    """Add EMA_20, EMA_50, ATR, and ADX columns to the DataFrame."""
     df = df.copy()
 
     df["EMA_20"] = df["Close"].ewm(span=EMA_SHORT, adjust=False).mean()
     df["EMA_50"] = df["Close"].ewm(span=EMA_LONG,  adjust=False).mean()
+
+    # RSI
+    delta     = df["Close"].diff()
+    avg_gain  = delta.clip(lower=0).ewm(alpha=1/RSI_PERIOD, adjust=False).mean()
+    avg_loss  = (-delta.clip(upper=0)).ewm(alpha=1/RSI_PERIOD, adjust=False).mean()
+    df["RSI"] = 100 - (100 / (1 + avg_gain / avg_loss.replace(0, float("nan"))))
 
     # True Range
     prev_close = df["Close"].shift(1)
@@ -266,6 +273,25 @@ def log_to_sheets(timestamp: str, price: float, ema20: float, ema50: float,
     except Exception as exc:
         print(f"  [WARNING] Sheets failed: {exc}")
 
+# ── Duplicate signal prevention ───────────────────────────────────────────────
+
+def is_duplicate_signal(signal: str) -> bool:
+    """Return True if the same signal appeared in the last 2 sheet rows (within ~1 hour)."""
+    if not GOOGLE_CREDENTIALS or not GOOGLE_SHEET_ID:
+        return False
+    try:
+        import gspread
+        gc    = gspread.service_account_from_dict(json.loads(GOOGLE_CREDENTIALS))
+        sheet = gc.open_by_key(GOOGLE_SHEET_ID).sheet1
+        rows  = sheet.get_all_values()[1:]  # skip header
+        for row in reversed(rows[-2:]):
+            if len(row) >= 8 and row[7].upper() == signal.upper():
+                return True
+        return False
+    except Exception as exc:
+        print(f"  [WARNING] Duplicate check failed: {exc}")
+        return False
+
 # ── Main check ─────────────────────────────────────────────────────────────────
 
 def check_ema_crossover() -> None:
@@ -289,7 +315,7 @@ def check_ema_crossover() -> None:
         return
 
     df = calculate_indicators(df)
-    df.dropna(subset=["EMA_20", "EMA_50", "ADX", "ATR"], inplace=True)
+    df.dropna(subset=["EMA_20", "EMA_50", "ADX", "ATR", "RSI"], inplace=True)
 
     if len(df) < 3:
         print("  [ERROR] Not enough data.")
@@ -301,6 +327,7 @@ def check_ema_crossover() -> None:
     ema50  = float(latest["EMA_50"])
     adx    = float(latest["ADX"])
     atr    = float(latest["ATR"])
+    rsi    = float(latest["RSI"])
 
     # ── Fetch daily trend ──
     daily_bullish = get_daily_trend()
@@ -312,6 +339,20 @@ def check_ema_crossover() -> None:
     # ── Apply ADX filter ──
     if signal and adx < ADX_THRESHOLD:
         print(f"  Signal filtered — ADX {adx:.1f} < {ADX_THRESHOLD} (market not trending)")
+        signal = None
+
+    # ── Apply minimum EMA gap filter ──
+    gap_pips = abs(ema20 - ema50) * 10000
+    if signal and gap_pips < MIN_EMA_GAP_PIPS:
+        print(f"  Signal filtered — EMA gap {gap_pips:.1f} pips < {MIN_EMA_GAP_PIPS} minimum")
+        signal = None
+
+    # ── Apply RSI confirmation filter ──
+    if signal == "buy" and rsi < 50:
+        print(f"  BUY filtered — RSI {rsi:.1f} < 50")
+        signal = None
+    elif signal == "sell" and rsi > 50:
+        print(f"  SELL filtered — RSI {rsi:.1f} > 50")
         signal = None
 
     # ── Apply daily trend alignment filter ──
@@ -340,6 +381,8 @@ def check_ema_crossover() -> None:
     print(f"  Price    : {price:.5f}")
     print(f"  EMA 20   : {ema20:.5f}")
     print(f"  EMA 50   : {ema50:.5f}")
+    print(f"  EMA Gap  : {gap_pips:.1f} pips")
+    print(f"  RSI      : {rsi:.1f}")
     print(f"  ADX      : {adx:.1f}  ({'trending' if adx >= ADX_THRESHOLD else 'choppy — signals filtered'})")
     print(f"  Daily    : {daily_str}")
     if stop_loss:
@@ -348,8 +391,11 @@ def check_ema_crossover() -> None:
     reason = build_reason(signal or "status", ema20, ema50, adx, daily_bullish, stop_loss)
 
     if signal:
-        send_notification(signal, price, timestamp,
-                          ema20, ema50, adx, daily_bullish, stop_loss, reason)
+        if is_duplicate_signal(signal):
+            print(f"  Duplicate {signal.upper()} suppressed — same signal already fired recently")
+        else:
+            send_notification(signal, price, timestamp,
+                              ema20, ema50, adx, daily_bullish, stop_loss, reason)
     log_to_sheets(timestamp, price, ema20, ema50, adx, daily_bullish,
                   signal or "status", stop_loss, reason)
 
