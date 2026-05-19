@@ -347,8 +347,9 @@ def check_ema_crossover() -> None:
 
     reason = build_reason(signal or "status", ema20, ema50, adx, daily_bullish, stop_loss)
 
-    send_notification(signal or "status", price, timestamp,
-                      ema20, ema50, adx, daily_bullish, stop_loss, reason)
+    if signal:
+        send_notification(signal, price, timestamp,
+                          ema20, ema50, adx, daily_bullish, stop_loss, reason)
     log_to_sheets(timestamp, price, ema20, ema50, adx, daily_bullish,
                   signal or "status", stop_loss, reason)
 
