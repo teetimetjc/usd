@@ -28,19 +28,6 @@ jobs:
       - name: Install dependencies
         run: pip install yfinance pandas pytz requests gspread
 
-      - name: Test Pushover credentials
-        env:
-          PUSHOVER_TOKEN: ${{ secrets.PUSHOVER_TOKEN }}
-          PUSHOVER_USER_KEY: ${{ secrets.PUSHOVER_USER_KEY }}
-        run: |
-          echo "Testing Pushover API directly..."
-          curl -s --output - \
-            --form-string "token=$PUSHOVER_TOKEN" \
-            --form-string "user=$PUSHOVER_USER_KEY" \
-            --form-string "message=EUR/USD monitor credential check" \
-            --form-string "title=Credential Test" \
-            https://api.pushover.net/1/messages.json
-
       - name: Run EMA crossover check
         env:
           PUSHOVER_TOKEN: ${{ secrets.PUSHOVER_TOKEN }}
