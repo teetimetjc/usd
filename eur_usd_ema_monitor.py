@@ -154,11 +154,13 @@ def build_reason(signal: str, ema20: float, ema50: float,
     daily_str = "bullish" if daily_bullish else ("bearish" if daily_bullish is False else "unknown")
 
     if signal == "buy":
-        base = (f"EMA 20 crossed ABOVE EMA 50 — confirmed over 2 candles. "
+        base = (f"BUY EUROS / SELL DOLLARS. "
+                f"EMA 20 crossed ABOVE EMA 50 — confirmed over 2 candles. "
                 f"Gap: +{gap_pips:.1f} pips. ADX: {adx:.1f} (trend strength). "
                 f"Daily trend: {daily_str}.")
     elif signal == "sell":
-        base = (f"EMA 20 crossed BELOW EMA 50 — confirmed over 2 candles. "
+        base = (f"SELL EUROS / BUY DOLLARS. "
+                f"EMA 20 crossed BELOW EMA 50 — confirmed over 2 candles. "
                 f"Gap: -{gap_pips:.1f} pips. ADX: {adx:.1f} (trend strength). "
                 f"Daily trend: {daily_str}.")
     else:
@@ -180,10 +182,10 @@ def send_notification(signal: str, price: float, timestamp: str,
                       reason: str = "") -> None:
     """Send Pushover notification (or notify-run fallback)."""
     if signal == "buy":
-        title    = "EUR/USD BUY Signal"
+        title    = "EUR/USD BUY — Buy Euros, Sell Dollars"
         priority = 1
     elif signal == "sell":
-        title    = "EUR/USD SELL Signal"
+        title    = "EUR/USD SELL — Sell Euros, Buy Dollars"
         priority = 1
     else:
         title    = "EUR/USD Status Update"
