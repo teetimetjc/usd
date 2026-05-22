@@ -355,12 +355,9 @@ def check_ema_crossover() -> None:
         print(f"  SELL filtered — RSI {rsi:.1f} > 50")
         signal = None
 
-    # ── Apply daily trend alignment filter ──
-    if signal == "buy"  and daily_bullish is False:
+    # ── Apply daily trend alignment filter (BUY only — SELL fires regardless) ──
+    if signal == "buy" and daily_bullish is False:
         print(f"  BUY filtered — daily trend is bearish")
-        signal = None
-    elif signal == "sell" and daily_bullish is True:
-        print(f"  SELL filtered — daily trend is bullish")
         signal = None
 
     # ── Calculate ATR-based stop loss ──
